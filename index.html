@@ -60,6 +60,7 @@ select,.grid input{width:100%;font:inherit;padding:10px 12px;border:2px solid va
 details{padding:9px 16px;border-top:1px solid var(--line);font-size:.9rem}
 details summary{cursor:pointer;color:var(--brand);font-weight:600}
 details .it{padding:7px 0}
+.it.hit{background:var(--chip)}
 mark{background:#ffe58a;color:#222;border-radius:3px}
 .foot{max-width:900px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:.82rem}
 .author{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
@@ -136,23 +137,64 @@ function rangeHit(up,tok){const [lo,hi]=tok.split("-");
   return ok;}
 function codeHit(up,r){return r.c.some(k=>k.includes("-")?(rangeHit(up,k)&&!r.x.some(e=>up.startsWith(e))):(up.startsWith(k)||k.startsWith(up)));}
 ICD2.forEach(r=>{r._k=" "+norm(r.name); r.rel=DATA.filter(d=>d._c.some(c=>codeHit(c,r))); if(r.rel.length>4) r.rel=[];});
-function itemsHtml(d){return d.it.filter(i=>!level||i[1].includes(level)).map(i=>{const [c,l]=lvText(i[1]);return '<div class="it"><span class="t">'+esc(i[0])+'</span><span class="badge '+c+'">'+l+'</span></div>';}).join("");}
+let HQ="";
+const SP=s=>" "+norm(s).replace(/[^a-z0-9]+/g," ").trim()+" ";
+const NZ=s=>s.replace(/ lao dong /g," _ ");
+const SPD=s=>" "+s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim()+" ";
+const NZD=s=>s.replace(/ lao động /g," _ ");
+let HD=false;
+const SYN={45:["tăng huyết áp","cao huyết áp","huyết áp cao","tha"],97:["tiểu đường","đái đường","đtđ","tăng đường huyết"],52:["hen","hen suyễn","hen phế quản","copd","viêm phế quản mạn"],49:["bệnh tim mạch","suy tim","bệnh van tim","tim bẩm sinh"],48:["loạn nhịp tim","rối loạn nhịp"],53:["lao phổi","bụi phổi","ung thư phổi","khí phế thũng"],60:["viêm gan","xơ gan","viêm gan b","viêm gan c","ung thư gan"],61:["sỏi mật","viêm túi mật","viêm tụy"],63:["suy thận","sỏi thận","bệnh thận","thận mạn"],95:["bướu cổ","cường giáp","basedow","bệnh giáp"],100:["béo phì","thừa cân","béo phệ"],89:["hiv","aids","hiv/aids"],83:["chàm"],79:["hắc lào","nấm da"],35:["động kinh","co giật"],32:["tâm thần phân liệt"],55:["loét dạ dày","viêm dạ dày","đau dạ dày"],56:["viêm đại tràng"],57:["trĩ"]};
+const SYN2={29:["tiểu đường","đtđ","đái đường","đái tháo đường"],1:["lao","bệnh lao","lao phổi"],9:["hiv","aids"],11:["ung thư","ung thu"],39:["tâm thần","trầm cảm","lo âu"],43:["động kinh","co giật"],71:["gout"],80:["suy thận","thận mạn"],81:["suy thận","thận mạn"],82:["suy thận","thận mạn"],50:["bệnh tim","tim mạch","nhồi máu cơ tim","suy tim","đột quỵ"],51:["copd","phổi tắc nghẽn mạn tính"],26:["suy giáp"],28:["cường giáp","basedow"],58:["crohn"],6:["viêm gan b"],7:["viêm gan b"],8:["viêm gan c"]};
+DATA.forEach(d=>{d._tp=SP(d.title);d._tpd=SPD(d.title);d._al=(SYN[d.tt]||[]).map(SP);d._ald=(SYN[d.tt]||[]).map(SPD);const cl=s=>s.replace(/^[\d.]+\s*/,"");d._ip=d.it.map(i=>({all:NZ(SP(i[0])),segs:i[0].split(" › ").map(s=>NZ(SP(cl(s)))),allD:NZD(SPD(i[0])),segsD:i[0].split(" › ").map(s=>NZD(SPD(cl(s))))}));});
+ICD2.forEach(r=>{r._tp=SP(r.name);r._tpd=SPD(r.name);r._al=(SYN2[r.n]||[]).map(SP);r._ald=(SYN2[r.n]||[]).map(SPD);});
+function phraseScore(P,nq,words){
+  if(P===" "+nq+" ") return 100;
+  if(P.includes(" "+nq+" ")) return 90;
+  if(P.includes(" "+nq)) return 80;
+  if(words.every(w=>P.includes(" "+w))) return 70;
+  return 0;}
+function aliasScore(A,nq){ if(A===" "+nq+" ") return 100; if(A.startsWith(" "+nq+" ")) return 90; if(A.startsWith(" "+nq)) return 80; return 0;}
+function scoreDoc(P,al,nq,words){let s=phraseScore(P,nq,words);for(const a of al)s=Math.max(s,aliasScore(a,nq));return s;}
+function itemsHtml(d){return d.it.filter(i=>!level||i[1].includes(level)).map(i=>{const [c,l]=lvText(i[1]);const hit=HQ&&(HD?SPD(i[0]):SP(i[0])).includes(" "+HQ);return '<div class="it'+(hit?' hit':'')+'"><span class="t">'+esc(i[0])+'</span><span class="badge '+c+'">'+l+'</span></div>';}).join("");}
 function groupCard(d){return '<section class="tt"><h2>'+d.tt+'. '+esc(d.title)+'</h2><div class="meta">'+esc(d.g)+(d.icd.length?'<div class="chips">'+d.icd.slice(0,14).map(c=>'<span class="chip">'+c+'</span>').join("")+(d.icd.length>14?'<span class="chip">…</span>':'')+'</div>':'')+'</div>'+itemsHtml(d)+'</section>';}
 function icdCard(r){return '<section class="tt"><h2>'+r.n+'. '+esc(r.name)+'</h2><div class="meta"><div class="chips"><span class="chip">ICD-10: '+esc(r.code)+'</span></div>'+(r.note?'<div>'+esc(r.note)+'</div>':'')+'</div>'+
   r.rel.map(d=>'<details><summary>Phân loại sức khoẻ liên quan: '+d.tt+'. '+esc(d.title)+'</summary>'+d.it.map(i=>{const [c,l]=lvText(i[1]);return '<div class="it"><span class="t">'+esc(i[0])+'</span><span class="badge '+c+'">'+l+'</span></div>';}).join("")+'</details>').join("")+'</section>';}
 function render(){
-  const raw=q.value.trim(), t=norm(raw), up=raw.toUpperCase().replace(/\s/g,"");
-  const isCode=/^[A-Z]\d{0,2}(\.\d*)?$/.test(up);
-  if(!t && !level){ list.innerHTML=""; count.textContent="Gõ để bắt đầu tìm kiếm."; return; }
-  const words=t?t.split(/\s+/):[];
-  let res=DATA.filter(d=>{let ok=true;
-    if(t) ok=isCode?d._c.some(c=>c.startsWith(up)||up.startsWith(c)):words.every(w=>d._k.includes(" "+w));
-    if(ok&&level) ok=d.it.some(i=>i[1].includes(level)); return ok;});
-  let r2=(t&&!level)?ICD2.filter(r=>isCode?codeHit(up,r):words.every(w=>r._k.includes(" "+w))):[];
-  if(t&&!isCode){const sc=d=>{const k=" "+norm(d.title);return words.every(w=>k.includes(" "+w))?0:1};res.sort((a,b)=>sc(a)-sc(b));}
-  count.textContent=(res.length||r2.length)?"Tìm thấy "+res.length+" nhóm phân loại sức khoẻ"+(t&&!level?" và "+r2.length+" mục trong danh mục TT 01/2025":""):"Không có kết quả. Thử mã ngắn hơn (ví dụ E11) hoặc tên bệnh ngắn gọn hơn.";
-  list.innerHTML=(res.length?'<div class="sec">Phân loại sức khoẻ I–V (QĐ 1613/BYT-QĐ)</div>'+res.slice(0,30).map(groupCard).join(""):"")+
-    (r2.length?'<div class="sec">Danh mục bệnh có mã ICD-10 (Phụ lục II, TT 01/2025/TT-BYT)</div>'+r2.slice(0,30).map(icdCard).join(""):"");
+  const raw=q.value.trim(), rl=raw.toLowerCase(), nqL=norm(raw).replace(/[^a-z0-9]+/g," ").trim();
+  const dia=norm(raw)!==rl, nq=dia?SPD(raw).trim():nqL; HD=dia;
+  const tok=raw.split(/\s+/)[0].toUpperCase(), isCode=/^[A-Z]\d{1,2}(\.\d*)?$/.test(tok), up=isCode?tok:"";
+  HQ=isCode?"":nq;
+  const kT=dia?"_tpd":"_tp", kA=dia?"_ald":"_al";
+  if(!raw&&!level){ list.innerHTML=""; count.textContent="Gõ để bắt đầu tìm kiếm."; return; }
+  if(raw&&!isCode&&nqL.length<2){ list.innerHTML=""; count.textContent="Nhập ít nhất 2 ký tự để tìm kiếm."; return; }
+  const words=nq?nq.split(" "):[];
+  let A=[],B=[],R2=[];
+  if(!raw){ A=DATA.map(d=>({d,s:0})); }
+  else if(isCode){
+    DATA.forEach(d=>{ if(d._c.some(c=>c.startsWith(up)||up.startsWith(c))) A.push({d,s:d._c.includes(up)?100:80}); });
+    if(!level) ICD2.forEach(r=>{ if(codeHit(up,r)) R2.push({r,s:r.c.includes(up)?100:80}); });
+  } else {
+    DATA.forEach(d=>{
+      let s=scoreDoc(d[kT],d[kA],nq,words);
+      if(s&&d.title.toLowerCase().includes(rl)) s+=5;
+      if(!s){
+        if(d._ip.some(p=>(dia?p.segsD:p.segs).some(g=>g.startsWith(" "+nq)))) s=65;
+        else if(nq.length>=3&&d._ip.some(p=>(dia?p.allD:p.all).includes(" "+nq+" "))) s=30;
+      }
+      if(s>=65) A.push({d,s}); else if(s>=30) B.push({d,s});
+    });
+    if(!level) ICD2.forEach(r=>{ let s=scoreDoc(r[kT],r[kA],nq,words); if(s>=70){ if(r.name.toLowerCase().includes(rl)) s+=5; R2.push({r,s}); } });
+  }
+  if(level){ const f=x=>x.d.it.some(i=>i[1].includes(level)); A=A.filter(f); B=B.filter(f); }
+  const cmp=(x,y)=>y.s-x.s||(x.d?x.d.tt-y.d.tt:x.r.n-y.r.n);
+  A.sort(cmp); B.sort(cmp); R2.sort(cmp);
+  const nA=A.length+R2.length;
+  count.textContent=(nA||B.length)?
+    (nA?"Đúng với từ khoá: "+A.length+" nhóm phân loại"+(R2.length?" và "+R2.length+" mục ICD-10":"")+(B.length?" · Liên quan khác: "+B.length:""):"Chưa có mục đúng với từ khoá. Có "+B.length+" mục liên quan.")
+    :"Không có kết quả. Thử mã ngắn hơn (ví dụ E11) hoặc tên bệnh ngắn gọn hơn.";
+  list.innerHTML=(A.length?'<div class="sec">Phân loại sức khoẻ I–V (QĐ 1613/BYT-QĐ)</div>'+A.slice(0,30).map(x=>groupCard(x.d)).join(""):"")+
+    (R2.length?'<div class="sec">Danh mục bệnh có mã ICD-10 (Phụ lục II, TT 01/2025/TT-BYT)</div>'+R2.slice(0,30).map(x=>icdCard(x.r)).join(""):"")+
+    (B.length?'<div class="sec">Liên quan khác (QĐ 1613)</div>'+B.slice(0,10).map(x=>groupCard(x.d)).join("")+(B.length>10?'<div class="warn">Còn '+(B.length-10)+' mục liên quan khác, hãy gõ cụ thể hơn.</div>':""):"");
 }
 q.addEventListener("input", render);
 render();
